@@ -1,6 +1,8 @@
 package com.example.gamehelper
 
+import android.content.Context
 import android.content.Intent
+import android.content.SharedPreferences
 import android.os.Bundle
 import android.provider.Settings
 import android.widget.Toast
@@ -43,12 +45,33 @@ class MainActivity : ComponentActivity() {
 fun AutoClickerScreen(modifier: Modifier = Modifier) {
     val context = LocalContext.current
 
-    // 状态变量
-    var xCoordinate by remember { mutableStateOf("500") }
-    var yCoordinate by remember { mutableStateOf("500") }
-    var clickInterval by remember { mutableStateOf("1000") }
+    // SharedPreferences 用于保存坐标
+    val sharedPrefs = remember {
+        context.getSharedPreferences("game_helper_prefs", Context.MODE_PRIVATE)
+    }
+
+    // 从SharedPreferences读取保存的坐标，如果没有则使用默认值
+    var xCoordinate by remember {
+        mutableStateOf(sharedPrefs.getString("x_coordinate", "500") ?: "500")
+    }
+    var yCoordinate by remember {
+        mutableStateOf(sharedPrefs.getString("y_coordinate", "500") ?: "500")
+    }
+    var clickInterval by remember {
+        mutableStateOf(sharedPrefs.getString("click_interval", "2000") ?: "2000")
+    }
     var isClicking by remember { mutableStateOf(false) }
     var isPreviewShowing by remember { mutableStateOf(false) }
+
+    // 保存坐标到SharedPreferences的函数
+    fun saveCoordinates(x: String, y: String, interval: String) {
+        sharedPrefs.edit().apply {
+            putString("x_coordinate", x)
+            putString("y_coordinate", y)
+            putString("click_interval", interval)
+            apply()
+        }
+    }
 
     // 检查无障碍服务状态
     val isAccessibilityEnabled = remember {
@@ -58,9 +81,14 @@ fun AutoClickerScreen(modifier: Modifier = Modifier) {
     // 设置坐标选择回调
     LaunchedEffect(Unit) {
         AutoClickService.onCoordinateSelected = { x, y ->
-            xCoordinate = x.toInt().toString()
-            yCoordinate = y.toInt().toString()
+            val newX = x.toInt().toString()
+            val newY = y.toInt().toString()
+            xCoordinate = newX
+            yCoordinate = newY
             isPreviewShowing = true
+
+            // 保存新坐标
+            saveCoordinates(newX, newY, clickInterval)
         }
     }
 
@@ -88,7 +116,11 @@ fun AutoClickerScreen(modifier: Modifier = Modifier) {
             // X坐标输入
             OutlinedTextField(
                 value = xCoordinate,
-                onValueChange = { xCoordinate = it },
+                onValueChange = {
+                    xCoordinate = it
+                    // 实时保存坐标
+                    saveCoordinates(it, yCoordinate, clickInterval)
+                },
                 label = { Text("X坐标") },
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                 modifier = Modifier.weight(1f)
@@ -97,7 +129,11 @@ fun AutoClickerScreen(modifier: Modifier = Modifier) {
             // Y坐标输入
             OutlinedTextField(
                 value = yCoordinate,
-                onValueChange = { yCoordinate = it },
+                onValueChange = {
+                    yCoordinate = it
+                    // 实时保存坐标
+                    saveCoordinates(xCoordinate, it, clickInterval)
+                },
                 label = { Text("Y坐标") },
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                 modifier = Modifier.weight(1f)
@@ -107,7 +143,11 @@ fun AutoClickerScreen(modifier: Modifier = Modifier) {
         // 点击间隔输入
         OutlinedTextField(
             value = clickInterval,
-            onValueChange = { clickInterval = it },
+            onValueChange = {
+                clickInterval = it
+                // 实时保存间隔
+                saveCoordinates(xCoordinate, yCoordinate, it)
+            },
             label = { Text("点击间隔(毫秒)") },
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
             modifier = Modifier.fillMaxWidth()
@@ -149,7 +189,7 @@ fun AutoClickerScreen(modifier: Modifier = Modifier) {
             onClick = {
                 val x = xCoordinate.toFloatOrNull() ?: 500f
                 val y = yCoordinate.toFloatOrNull() ?: 500f
-                val interval = clickInterval.toLongOrNull() ?: 1000L
+                val interval = clickInterval.toLongOrNull() ?: 2000L
 
                 AutoClickService.instance?.setClickPosition(x, y)
                 AutoClickService.instance?.setClickInterval(interval)
@@ -219,7 +259,7 @@ fun AutoClickerScreen(modifier: Modifier = Modifier) {
                     // 更新参数
                     val x = xCoordinate.toFloatOrNull() ?: 500f
                     val y = yCoordinate.toFloatOrNull() ?: 500f
-                    val interval = clickInterval.toLongOrNull() ?: 1000L
+                    val interval = clickInterval.toLongOrNull() ?: 2000L
 
                     AutoClickService.instance?.setClickPosition(x, y)
                     AutoClickService.instance?.setClickInterval(interval)
@@ -260,7 +300,7 @@ fun AutoClickerScreen(modifier: Modifier = Modifier) {
             Column(
                 modifier = Modifier
                     .padding(16.dp)
-                    .verticalScroll(rememberScrollState())
+                    .verticalScroll(rememberScrollState()) // 添加垂直滚动
             ) {
                 Text(
                     text = "使用说明：",
@@ -276,6 +316,7 @@ fun AutoClickerScreen(modifier: Modifier = Modifier) {
                            "6. 点击开始按钮开始自动点击\n\n" +
                            "7. 点击停止按钮停止自动点击\n\n" +
                            "注意事项：\n" +
+                           "• 坐标和间隔会自动保存，下次打开应用时会恢复\n" +
                            "• 请确保已授予应用无障碍服务权限\n" +
                            "• 坐标原点(0,0)位于屏幕左上角\n" +
                            "• 点击间隔建议不要设置过小，避免系统卡顿\n" +

@@ -2,6 +2,7 @@ package com.example.gamehelper
 
 import android.accessibilityservice.AccessibilityService
 import android.accessibilityservice.GestureDescription
+import android.content.Context
 import android.graphics.Path
 import android.graphics.PixelFormat
 import android.view.Gravity
@@ -51,6 +52,9 @@ class AutoClickService : AccessibilityService() {
         super.onServiceConnected()
         instance = this
         windowManager = getSystemService(WINDOW_SERVICE) as WindowManager
+
+        // 恢复保存的坐标
+        restoreSavedCoordinates()
     }
 
     override fun onDestroy() {
@@ -71,6 +75,45 @@ class AutoClickService : AccessibilityService() {
         stopClicking()
         hidePreview()
         hideSelectionOverlay()
+    }
+
+    /**
+     * 恢复保存的坐标
+     */
+    private fun restoreSavedCoordinates() {
+        try {
+            val sharedPrefs = getSharedPreferences("game_helper_prefs", Context.MODE_PRIVATE)
+            val savedX = sharedPrefs.getString("x_coordinate", "500")?.toFloatOrNull() ?: 500f
+            val savedY = sharedPrefs.getString("y_coordinate", "500")?.toFloatOrNull() ?: 500f
+            val savedInterval = sharedPrefs.getString("click_interval", "2000")?.toLongOrNull() ?: 2000L
+
+            clickX = savedX
+            clickY = savedY
+            clickInterval = savedInterval
+        } catch (e: Exception) {
+            e.printStackTrace()
+            // 如果恢复失败，使用默认值
+            clickX = 500f
+            clickY = 500f
+            clickInterval = 2000L
+        }
+    }
+
+    /**
+     * 保存坐标到SharedPreferences
+     */
+    private fun saveCoordinates() {
+        try {
+            val sharedPrefs = getSharedPreferences("game_helper_prefs", Context.MODE_PRIVATE)
+            sharedPrefs.edit().apply {
+                putString("x_coordinate", clickX.toInt().toString())
+                putString("y_coordinate", clickY.toInt().toString())
+                putString("click_interval", clickInterval.toString())
+                apply()
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
     }
 
     /**
@@ -103,6 +146,8 @@ class AutoClickService : AccessibilityService() {
     fun setClickPosition(x: Float, y: Float) {
         clickX = x
         clickY = y
+        // 保存坐标
+        saveCoordinates()
         // 更新预览位置
         if (isPreviewShowing) {
             updatePreviewPosition()
@@ -114,6 +159,8 @@ class AutoClickService : AccessibilityService() {
      */
     fun setClickInterval(interval: Long) {
         clickInterval = interval
+        // 保存间隔
+        saveCoordinates()
     }
 
     /**
