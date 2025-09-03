@@ -1,0 +1,12 @@
+<resources>
+    <string name="app_name">Game Helper</string>
+    <string name="accessibility_service_description">自动连点器服务，用于模拟屏幕点击</string>
+    <string name="start_clicking">开始点击</string>
+    <string name="stop_clicking">停止点击</string>
+    <string name="set_position">设置点击位置</string>
+    <string name="click_interval">点击间隔(毫秒)</string>
+    <string name="x_coordinate">X坐标</string>
+    <string name="y_coordinate">Y坐标</string>
+    <string name="enable_accessibility">启用无障碍服务</string>
+    <string name="accessibility_not_enabled">请先启用无障碍服务</string>
+</resources>
