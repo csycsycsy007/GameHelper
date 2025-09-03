@@ -5,6 +5,8 @@ import android.accessibilityservice.GestureDescription
 import android.graphics.Path
 import android.graphics.PixelFormat
 import android.view.Gravity
+import android.view.MotionEvent
+import android.view.View
 import android.view.WindowManager
 import android.view.accessibility.AccessibilityEvent
 import android.widget.ImageView
@@ -27,7 +29,10 @@ class AutoClickService : AccessibilityService() {
         // 点击参数
         var clickX = 500f
         var clickY = 500f
-        var clickInterval = 1000L // 默认1秒间隔
+        var clickInterval = 2000L // 默认2秒间隔
+
+        // 坐标选择回调
+        var onCoordinateSelected: ((Float, Float) -> Unit)? = null
     }
 
     private var clickJob: Job? = null
@@ -37,6 +42,10 @@ class AutoClickService : AccessibilityService() {
     private var windowManager: WindowManager? = null
     private var previewView: ImageView? = null
     private var isPreviewShowing = false
+
+    // 坐标选择相关
+    private var selectionOverlay: View? = null
+    private var isSelectionMode = false
 
     override fun onServiceConnected() {
         super.onServiceConnected()
@@ -49,6 +58,7 @@ class AutoClickService : AccessibilityService() {
         instance = null
         stopClicking()
         hidePreview()
+        hideSelectionOverlay()
         serviceScope.cancel()
     }
 
@@ -60,6 +70,7 @@ class AutoClickService : AccessibilityService() {
         // 服务被中断时停止点击
         stopClicking()
         hidePreview()
+        hideSelectionOverlay()
     }
 
     /**
@@ -103,6 +114,71 @@ class AutoClickService : AccessibilityService() {
      */
     fun setClickInterval(interval: Long) {
         clickInterval = interval
+    }
+
+    /**
+     * 显示坐标选择界面
+     */
+    fun showCoordinateSelection() {
+        if (isSelectionMode || windowManager == null) return
+
+        try {
+            // 创建全屏透明覆盖层
+            selectionOverlay = View(this).apply {
+                setBackgroundColor(0x30000000) // 半透明黑色
+                setOnTouchListener { _, event ->
+                    if (event.action == MotionEvent.ACTION_DOWN) {
+                        val x = event.rawX
+                        val y = event.rawY
+
+                        // 设置新的点击位置
+                        setClickPosition(x, y)
+
+                        // 通知主界面更新坐标显示
+                        onCoordinateSelected?.invoke(x, y)
+
+                        // 隐藏选择界面
+                        hideSelectionOverlay()
+
+                        // 显示预览
+                        showPreview()
+                    }
+                    true
+                }
+            }
+
+            // 设置全屏窗口参数
+            val params = WindowManager.LayoutParams(
+                WindowManager.LayoutParams.MATCH_PARENT,
+                WindowManager.LayoutParams.MATCH_PARENT,
+                WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY,
+                WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+                        WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
+                PixelFormat.TRANSLUCENT
+            ).apply {
+                gravity = Gravity.TOP or Gravity.START
+            }
+
+            windowManager?.addView(selectionOverlay, params)
+            isSelectionMode = true
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
+
+    /**
+     * 隐藏坐标选择界面
+     */
+    fun hideSelectionOverlay() {
+        if (!isSelectionMode || selectionOverlay == null || windowManager == null) return
+
+        try {
+            windowManager?.removeView(selectionOverlay)
+            selectionOverlay = null
+            isSelectionMode = false
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
     }
 
     /**
